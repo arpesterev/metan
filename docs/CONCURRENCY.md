@@ -22,7 +22,7 @@ This copy-on-update approach trades memory and CPU for correctness. Do not use i
 
 ## Copy semantics
 
-[`MetaJsonSnapshots.copy()`](../src/main/java/ru/council/metan/models/MetaJsonSnapshots.java) recursively copies nodes, arrays and parent links. Scalar values that are known to be immutable are reused; JDBC date/time values, regular dates and primitive arrays are copied. Unsupported mutable scalar objects are **rejected**, not silently aliased. Cycles in child links are rejected. The source tree must not be modified during copying unless it is protected by the wrapper.
+[`MetaJsonSnapshots.copy()`](../src/main/java/ru/council/metan/models/MetaJsonSnapshots.java) recursively copies nodes, arrays and parent links. Only explicitly recognized immutable scalar types, including common `java.time` value classes, are reused. JDBC date/time values, regular dates and primitive arrays are copied. Mutable builders such as `DateTimeFormatterBuilder` are rejected even though they live under the `java.time` package. Unsupported mutable scalar objects are **rejected**, not silently aliased. Cycles in child links are rejected. The source tree must not be modified during copying unless it is protected by the wrapper.
 
 ## Remaining unsafe APIs
 
