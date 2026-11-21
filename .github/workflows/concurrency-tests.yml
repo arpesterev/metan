@@ -20,4 +20,4 @@ jobs:
           distribution: temurin
           java-version: '11'
       - name: Gradle tests
-        run: ./gradlew test --no-daemon
+        run: bash ./gradlew test --no-daemon
