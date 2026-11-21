@@ -3,7 +3,7 @@ name: Concurrency regression tests
 on:
   push:
     branches:
-      - 'fix/synchronized-snapshots-*'
+      - master
   pull_request:
   workflow_dispatch:
 
