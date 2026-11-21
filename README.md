@@ -29,3 +29,7 @@ Gradle configures JUnit 5 for tests and Maven publishing. The publishing destina
 - [`MetaJsonRowMapper.java`](src/main/java/ru/council/metan/jdbc/MetaJsonRowMapper.java): JDBC integration.
 
 **Note:** this README describes the checked-in API and build configuration. It does not claim a published public artifact or a tested end-to-end example.
+
+## Concurrency
+
+`MetaJson` and the SQL row mapper are mutable and are not safe for concurrent modification. Use request-local instances or coordinate **all** access to shared graphs. See [concurrency and ownership](docs/CONCURRENCY.md) for concrete risks and usage rules.
