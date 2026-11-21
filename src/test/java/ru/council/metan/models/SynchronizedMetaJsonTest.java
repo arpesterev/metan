@@ -48,6 +48,35 @@ class SynchronizedMetaJsonTest {
     }
 
     @Test
+    void concurrentNestedReadModifyWriteRetainsEveryIncrement() throws Exception {
+        MetaJson initial = new MetaJson(JsonElementType.Node);
+        initial.putScalar("counter", 0);
+        SynchronizedMetaJson shared = new SynchronizedMetaJson(initial);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        CountDownLatch go = new CountDownLatch(1);
+        List<Future<?>> tasks = new ArrayList<>();
+        try {
+            for (int i = 0; i < 150; ++i) {
+                tasks.add(executor.submit(() -> {
+                    go.await();
+                    shared.update(root -> {
+                        int previous = (Integer) root.resolve("counter").getScalar().getValue();
+                        root.putScalar("counter", previous + 1);
+                    });
+                    return null;
+                }));
+            }
+            go.countDown();
+            for (Future<?> task : tasks) {
+                task.get(20, TimeUnit.SECONDS);
+            }
+            assertEquals(150, shared.snapshot().resolve("counter").getScalar().getValue());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void callerCannotMutateInternalTreeThroughSnapshots() {
         MetaJson seed = new MetaJson(JsonElementType.Node);
         MetaJson list = new MetaJson(JsonElementType.Array);
