@@ -81,6 +81,22 @@ class SynchronizedMetaJsonTest {
     }
 
     @Test
+    void mutableJavaTimeBuilderCannotEscapeTheSnapshotBoundary() {
+        MetaJson mutableValue = new MetaJson(
+                JsonElementType.Scalar,
+                new Scalar<>(new java.time.format.DateTimeFormatterBuilder().appendLiteral('x')));
+        assertThrows(IllegalArgumentException.class, () -> new SynchronizedMetaJson(mutableValue));
+    }
+
+    @Test
+    void immutableJavaTimeScalarsRemainSupported() {
+        java.time.LocalDate date = java.time.LocalDate.of(2026, 11, 21);
+        SynchronizedMetaJson shared = new SynchronizedMetaJson(
+                new MetaJson(JsonElementType.Scalar, new Scalar<>(date)));
+        assertEquals(date, shared.snapshot().getScalar().getValue());
+    }
+
+    @Test
     void mutableJdbcTimestampsAreCopied() {
         Timestamp original = Timestamp.valueOf("2026-11-21 12:30:45.123456789");
         SynchronizedMetaJson shared = new SynchronizedMetaJson(

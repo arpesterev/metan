@@ -90,7 +90,20 @@ public final class MetaJsonSnapshots {
                 || value instanceof BigDecimal
                 || value instanceof UUID
                 || value instanceof Enum<?>
-                || value.getClass().getName().startsWith("java.time.")) {
+                || value instanceof java.time.Instant
+                || value instanceof java.time.LocalDate
+                || value instanceof java.time.LocalTime
+                || value instanceof java.time.LocalDateTime
+                || value instanceof java.time.OffsetTime
+                || value instanceof java.time.OffsetDateTime
+                || value instanceof java.time.ZonedDateTime
+                || value instanceof java.time.Year
+                || value instanceof java.time.YearMonth
+                || value instanceof java.time.MonthDay
+                || value instanceof java.time.Duration
+                || value instanceof java.time.Period
+                || value instanceof java.time.ZoneId
+                || value instanceof java.time.format.DateTimeFormatter) {
             return value;
         }
         if (value instanceof Timestamp) {
