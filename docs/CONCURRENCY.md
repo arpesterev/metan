@@ -1,23 +1,38 @@
 # Concurrency and object ownership
 
-**Status:** `MetaJson` and `MetaJsonRowMapper` are mutable and **not safe for concurrent access when any caller may modify their state**. The library does not synchronize access to a shared result tree.
+`MetaJson` is an intentionally mutable data model and must not be modified concurrently by different threads without coordination. To share a tree safely, use the new **`SynchronizedMetaJson`** wrapper.
 
-## Where the risk comes from
+## Safe shared-state API
 
-- [`MetaJson`](../src/main/java/ru/council/metan/models/MetaJson.java) stores its node/array contents in ordinary `HashMap` / `ArrayList` instances. `getNode()` and `getArray()` return the actual collections. Calls to `put()`, `add()`, `remove()`, setters and direct collection mutations affect the shared object.
-- [`JsonMerger.mergeJsons()`](../src/main/java/ru/council/metan/merger/JsonMerger.java) and `processFusion()` modify the supplied target tree. These methods use local temporary variables, but that does **not** make concurrently modifying the same target safe.
-- [`MetaJsonRowMapper`](../src/main/java/ru/council/metan/jdbc/MetaJsonRowMapper.java) accumulates rows in instance fields `json` and `listOfJsons`. Use a **new mapper per query execution**, not one shared across simultaneous queries.
-- `JsonPath` is a mutable path builder. Avoid sharing a path under concurrent modifications. [`JsonPath.add()`](../src/main/java/ru/council/metan/jsonpath/JsonPath.java) changes elements in the path.
+```java
+MetaJson initial = new MetaJson(JsonElementType.Array);
+SynchronizedMetaJson shared = new SynchronizedMetaJson(initial);
 
-## Safe usage boundaries
+// Each update is atomic and isolated from other updates.
+shared.update(tree -> tree.add(
+    new MetaJson(JsonElementType.Scalar, new Scalar<>(42))));
 
-1. Build a new `MetaJson` graph for each independent request or operation. Keep merge destinations owned by one request.
-2. For multiple readers, publish a fully constructed graph safely and guarantee that **no code modifies it**, including through the returned collections or nested values.
-3. When a result must be shared and updated, guard the **whole read/modify/write operation** with a common lock, or design immutable snapshots. Switching the top-level map to `ConcurrentHashMap` alone would not protect arrays, parent pointers, or multi-step merges.
-4. Do not reconfigure a Jackson `ObjectMapper` with `MetaJsonStdDeserializer.registerToObjectMapperInstance()` while other threads are using that mapper. Complete configuration before concurrent serialization/deserialization.
+// Returns a detached copy. Mutating this copy does not change shared state.
+MetaJson snapshot = shared.snapshot();
+```
 
-## Verification still needed
+The wrapper copies the seed, works on a private copy during each update and copies the result before committing. If a callback fails, no partial update is committed. The callback can retain its working copy without gaining access to the stored state. `merge(configuration, incoming)` offers the same serialized update semantics, assuming the caller does not concurrently mutate `incoming` or its configuration.
 
-There are no concurrency guarantees or stress-test results established by this document. To claim parallel-write support, add tests with repeated concurrent `put()`, `add()`, `remove()` and `JsonMerger.mergeJsons()` calls on shared graphs, including nested structures, and specify the intended atomicity semantics.
+This copy-on-update approach trades memory and CPU for correctness. Do not use it without measuring performance for large trees. It is thread-safe within a single JVM object, not a distributed transactional store.
 
-This note describes the checked-in source, not a verified concurrency test run.
+## Copy semantics
+
+[`MetaJsonSnapshots.copy()`](../src/main/java/ru/council/metan/models/MetaJsonSnapshots.java) recursively copies nodes, arrays and parent links. Scalar values that are known to be immutable are reused; JDBC date/time values, regular dates and primitive arrays are copied. Unsupported mutable scalar objects are **rejected**, not silently aliased. Cycles in child links are rejected. The source tree must not be modified during copying unless it is protected by the wrapper.
+
+## Remaining unsafe APIs
+
+- [`MetaJson`](../src/main/java/ru/council/metan/models/MetaJson.java) uses `HashMap` and `ArrayList`; `getNode()` and `getArray()` expose them directly. An unwrapped shared tree is not safe for concurrent writes.
+- [`JsonMerger.mergeJsons()`](../src/main/java/ru/council/metan/merger/JsonMerger.java) mutates its target; use independent trees or the wrapper.
+- [`MetaJsonRowMapper`](../src/main/java/ru/council/metan/jdbc/MetaJsonRowMapper.java) accumulates results in instance fields. Use a new mapper for every query.
+- `JsonPath` is mutable. Keep paths request-scoped.
+
+Do not configure Jackson `ObjectMapper` instances while they are in use by other threads.
+
+## Verification
+
+[`SynchronizedMetaJsonTest`](../src/test/java/ru/council/metan/models/SynchronizedMetaJsonTest.java) exercises concurrent updates, detached snapshots, rollback and mutable scalar handling. Build execution status must be checked in CI; the documentation does not claim unrelated raw `MetaJson` operations are synchronized.
