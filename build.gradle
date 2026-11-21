@@ -55,3 +55,11 @@ publishing {
         }
     }
 }
+ // Keep the published jar's JPMS automatic module name stable across Maven
+ // artifacts and Gradle composite builds (which use a different root name).
+tasks.named('jar') {
+    archiveBaseName.set('metan')
+    manifest {
+        attributes('Automatic-Module-Name': 'metan')
+    }
+}
